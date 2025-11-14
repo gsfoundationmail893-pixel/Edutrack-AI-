@@ -1,15 +1,11 @@
 import streamlit as st
-import pytesseract
-from PIL import Image
 import pandas as pd
 
-# If using Windows, set tesseract path:
-# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
-
+# App title
 st.title("📘 EduTrack AI – Institutional Document Analyzer")
-st.write("Upload institutional documents to check completeness and calculate performance score.")
+st.write("Upload institutional documents (text or CSV) to check completeness and calculate performance score.")
 
-# Required documents
+# List of required documents
 required_docs = [
     "Affiliation Certificate",
     "Faculty List",
@@ -19,25 +15,33 @@ required_docs = [
     "Student Enrollment Data"
 ]
 
-# Upload files
-uploaded_files = st.file_uploader("Upload Documents", type=["png", "jpg", "jpeg"], accept_multiple_files=True)
+# File uploader
+uploaded_files = st.file_uploader(
+    "Upload Documents (.txt or .csv)", 
+    type=["txt", "csv"], 
+    accept_multiple_files=True
+)
 
 if uploaded_files:
     extracted_docs = []
-    count_present = 0
 
     st.subheader("📄 Extracted Text from Documents")
     for file in uploaded_files:
         st.write(f"**Document:** {file.name}")
-        img = Image.open(file)
-        text = pytesseract.image_to_string(img)
+        # Read text
+        if file.name.endswith(".txt"):
+            text = file.read().decode("utf-8")
+        elif file.name.endswith(".csv"):
+            df_csv = pd.read_csv(file)
+            text = " ".join(df_csv.astype(str).values.flatten())
+        else:
+            text = ""
         st.text_area("Extracted Text", text, height=150)
         extracted_docs.append(text)
 
-        # Check required documents
-        for req in required_docs:
-            if req.lower() in text.lower():
-                count_present += 1
+    # Combine all text and check required documents
+    all_text = " ".join(extracted_docs).lower()
+    count_present = sum(1 for req in required_docs if req.lower() in all_text)
 
     # Document sufficiency
     sufficiency = (count_present / len(required_docs)) * 100
@@ -49,10 +53,10 @@ if uploaded_files:
     st.subheader("📈 Institution Performance Indicator (IPI)")
     st.metric("IPI Score", f"{performance_score:.2f}")
 
-    # Required documents table
+    # Document checklist table
     st.subheader("📋 Document Checklist")
     df = pd.DataFrame({
         "Document": required_docs,
-        "Status": ["Present" if req.lower() in " ".join(extracted_docs).lower() else "Missing" for req in required_docs]
+        "Status": ["Present" if req.lower() in all_text else "Missing" for req in required_docs]
     })
     st.table(df)
